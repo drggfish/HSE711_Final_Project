@@ -1,0 +1,79 @@
+---
+title: "Scratch"
+author: "Greg Fisher"
+date: "2026-09-29"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+# Load Libraries
+
+library(tidyverse)
+
+```
+
+```{r}
+
+count.df <- read.csv(file = "data/counts.csv", header = TRUE)
+
+```
+
+```{r}
+
+# Strip version number from Ensemble ID
+
+count.df.mod <- count.df %>%
+  mutate(X = sub("\\.[^.]*$", "", X))
+
+ ensemble.ids <- count.df.mod %>% pull(X)
+
+```
+
+
+```{r}
+
+# Install packages if you haven't already
+#BiocManager::install(c("AnnotationDbi", "org.Hs.eg.db"))
+
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+
+ensembl_ids <- ensemble.ids
+
+# Map IDs to Gene Symbols
+gene_symbols <- mapIds(
+  x = org.Hs.eg.db,
+  keys = ensembl_ids,
+  keytype = "ENSEMBL",
+  column = "SYMBOL",
+  multiVals = "first" # Keeps the first match if duplicate mappings occur
+)
+
+#print(gene_symbols)
+
+
+```
+
+```{r}
+
+df <- data.frame(names(gene_symbols),gene_symbols)
+
+```
+
+```{r}
+
+dat.long.genes %>% 
+  group_by(gene_symbols) %>% 
+  summarize(row_count = n())
+
+dat.long %>% 
+  group_by(X) %>% 
+  summarize(row_count = n())
+
+
+```

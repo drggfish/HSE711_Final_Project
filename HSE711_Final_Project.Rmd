@@ -5,8 +5,11 @@ date: "2026-09-29"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+```{r include=FALSE, message=FALSE}
+
+library(tidyverse)
+
 ```
 
 ## R Markdown
@@ -21,5 +24,75 @@ count.df <- read.csv(file = "data/counts.csv", header = TRUE)
 
 meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
 
+
+```
+
+```{r}
+
+# library(dplyr)
+
+metadata.modified <- meta_data.df %>%
+  dplyr::select(1,10,23,29,41) %>%
+  mutate(barcode = str_replace_all(barcode, "-", "."))
+
+```
+
+```{r}
+# Convert count.df to long format
+
+dat.long <- count.df %>%
+  pivot_longer(
+    cols = -X,        # Pivot all columns except the new row_id column
+    names_to = "Samples",    # Column name for your old wide headers
+    values_to = "Counts"    # Column name for your data values
+  )
+
+```
+
+
+```{r}
+
+dat.long.enriched <- dat.long %>%
+  mutate(X = sub("\\.[^.]*$", "", X)) %>%
+  left_join(., metadata.modified, by = c("Samples" = "barcode"))
+
+```
+
+```{r}
+
+
+dat.long.genes <- dat.long.enriched %>%
+#  mutate(X = sub("\\.[^.]*$", "", X)) %>%
+  left_join(., df, by = c("X" = "names.gene_symbols."))
+
+```
+
+
+```{r}
+# 1. barplot
+dat.long.genes %>%
+  filter(gene_symbols == 'BRCA1') %>%
+  ggplot(., aes(x=Counts, fill = ajcc_pathologic_stage)) +
+  geom_histogram(alpha = 0.5, binwidth = 1000) +
+  labs(
+    title = "Distribution of BRACA1 Gene Counts",
+    x = "AJCC Pathological Stage",
+    y = "Count (Frequency)"
+  )
+  
+```
+
+```{r}
+
+dat.long.genes %>%
+  filter(gene_symbols == 'BRCA1') %>%
+  ggplot(., aes(x=ajcc_pathologic_stage,y=Counts)) +
+  geom_violin() +
+  labs(
+    title = "Distribution of BRACA1 Gene Counts",
+    x = "AJCC Pathological Stage",
+    y = "Count (Frequency)"
+  ) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
 ```
