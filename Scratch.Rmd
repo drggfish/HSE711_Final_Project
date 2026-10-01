@@ -77,3 +77,25 @@ dat.long %>%
 
 
 ```
+
+```{r}
+
+dat.long.df <- count.df[1:5000,] %>%
+  pivot_longer(
+    cols = -X,        # Pivot all columns except the new row_id column
+    names_to = "Samples",    # Column name for your old wide headers
+    values_to = "Counts"    # Column name for your data values
+  ) %>%
+  mutate(X = sub("\\.[^.]*$", "", X)) %>%
+  left_join(., df, by = c("X" = "names.gene_symbols."))
+
+```
+```{r}
+
+
+dat.wide.df <- dat.long.df %>%
+  pivot_wider(
+    names_from = Samples, 
+    values_from = Counts)
+
+```

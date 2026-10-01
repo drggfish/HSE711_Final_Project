@@ -96,3 +96,45 @@ dat.long.genes %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
 ```
+
+```{r}
+
+summary_stats <- dat.long.genes %>%
+  filter(gene_symbols == 'BRCA2') %>%
+  summarize(
+    min = min(Counts, na.rm = TRUE),
+    max = max(Counts, na.rm = TRUE),
+    mean = mean(Counts, na.rm = TRUE),
+    median = median(Counts, na.rm = TRUE),
+    sd = sd(Counts, na.rm = TRUE)
+  )
+summary_stats
+
+```
+
+```{r}
+df_test <- dat.long.genes %>%
+  dplyr::select("gene_symbols", "Counts") %>%
+  dplyr::filter(gene_symbols == 'BRCA1' | gene_symbols == 'BRCA2') %>%
+  pivot_wider(names_from = c("gene_symbols"), values_from = Counts, values_fn = list(Counts = length))
+
+
+
+```
+
+```{r}
+
+df_test <- dat.long.genes %>%
+  dplyr::filter(gene_symbols == 'BRCA1' | gene_symbols == 'BRCA2') %>%
+  pivot_wider(names_from = "gene_symbols", values_from = Counts) #%>%
+  #ggplot(., aes(x = BRCA1, y = BRCA2)) +
+  #geom_point()
+
+```
+
+```{r}
+
+df_test %>%
+  pivot_wider(names_from = gene_symbols, values_from = Counts)
+
+```
