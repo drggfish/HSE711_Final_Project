@@ -1,0 +1,84 @@
+---
+title: "Heatmap"
+author: "Greg Fisher"
+date: "2026-10-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+#BiocManager::install("ComplexHeatmap")
+
+library(ComplexHeatmap)
+library(circlize)
+
+count.df <- read.csv(file = "data/counts.csv", header = TRUE)
+
+
+```
+
+```{r}
+##Read in count matrix and corresponding meta data
+counts <- read.csv("data/heatmap_counts.csv", row.names = 1)
+
+metadata <- read.csv("data/heatmap_metadata.csv", row.names = 1)
+
+```
+
+```{r}
+## I'm just selecting 10 genes here
+genes_to_plot <- rownames(counts)[1:10]
+
+## Keep only the 10 genes we want
+counts_subset <- counts[genes_to_plot, ]
+
+
+```
+
+```{r}
+
+#count.df <- read.csv(file = "data/counts.csv", header = TRUE)
+#meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
+
+count.df.subset <- count.df[1:1000,]
+
+
+```
+
+
+```{r}
+
+## Heatmap annotaitons
+column_ha <- HeatmapAnnotation(
+  Disease_Status = metadata$Disease_Status,
+  Sex = metadata$Sex,
+  col = list(
+    Disease_Status = c(Case = "red", Control = "blue"),
+    Sex = c(Male = "green", Female = "purple")
+  )
+)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+
+# Create heatmap
+Heatmap(
+  counts_subset,
+  name = "Counts",
+  top_annotation = column_ha,
+  show_row_names = TRUE,
+  show_column_names = TRUE,
+  cluster_columns = TRUE,
+  cluster_rows = TRUE,
+  column_title = "Samples",
+  row_title = "Genes",
+  heatmap_legend_param = list(title = "Count")
+)
+
+```
