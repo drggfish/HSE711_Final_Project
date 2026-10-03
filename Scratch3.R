@@ -9,6 +9,10 @@ meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
 # Subset the data for initial coding
 count.df.min <- count.df[1:20000,]
 
+count.df.min <- count.df %>%
+         select(1:5) %>%
+         slice(1:10000)
+
 # Convert from wide to long data format
 count.df.min.long <- count.df.min %>%
   pivot_longer(
@@ -41,8 +45,13 @@ ensemble.ids <- count.df.mod %>% pull(X)
 # Install packages if you haven't already
 #BiocManager::install(c("AnnotationDbi", "org.Hs.eg.db"))
 
-library(AnnotationDbi)
-library(org.Hs.eg.db)
+#library(AnnotationDbi)
+#library(org.Hs.eg.db)
+
+count.df.mod <- count.df %>%
+  mutate(X = sub("\\.[^.]*$", "", X))
+
+ensemble.ids <- count.df.mod %>% pull(X)
 
 ensembl_ids <- ensemble.ids
 
@@ -97,10 +106,10 @@ count.final %>%
 
 ############################################################################
 
-count.final %>%
-  filter(X == 'ENSG00000012048.23' | X == 'ENSG00000067066.17') %>%
+test2 <- count.final %>%
+  filter(X == 'ENSG00000066455.13' | X == 'ENSG00000067113.17') %>%
   pivot_wider(names_from = X, values_from = Counts) %>%
-  ggplot(., aes(x = ENSG00000012048.23, y = ENSG00000067066.17)) +
+  ggplot(., aes(x = ENSG00000066455.13, y = ENSG00000067113.17)) +
   geom_point()
 
 
