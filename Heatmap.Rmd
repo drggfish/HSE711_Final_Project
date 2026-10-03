@@ -42,8 +42,8 @@ counts_subset <- counts[genes_to_plot, ]
 
 ```{r}
 
-#count.df <- read.csv(file = "data/counts.csv", header = TRUE)
-#meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
+count.df <- read.csv(file = "data/counts.csv", header = TRUE)
+meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
 
 count.df.subset <- count.df[1:1000,]
 
