@@ -1,5 +1,5 @@
 ---
-title: "HSE711_Final_Project"
+title: "Final_Project Check In"
 author: "Greg Fisher"
 date: "2026-09-29"
 output: pdf_document
@@ -12,17 +12,23 @@ library(tidyverse)
 
 ```
 
-```{r echo=FALSE}
+## 1) Download the Sample RNA-seq Count Matrix and associated Metadata.
+
+```{r}
 
 # Read in both data sets
 count.df <- read.csv(file = "data/counts.csv", header = TRUE)
 meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
 ```
 
-```{r, message=FALSE}
+### Data wrangling over the next sequence of steps
 
+```{r, message=FALSE}
+# Use only 5 columns of data in the meta_data dataframe to make processing faster
 metadata.modified <- meta_data.df %>%
   dplyr::select(1,10,23,29,41) %>%
+  # The barcode variable will eventually be used to join the metadata to the count data
+  # The hyphen in the barcode variable needs to be changed to a dot
   mutate(barcode = str_replace_all(barcode, "-", "."))
 
 ```
@@ -30,10 +36,15 @@ metadata.modified <- meta_data.df %>%
 ```{r, message=FALSE}
 
 # Convert count.df to long format
+# This is required for many of the ggplot graphs and many other functions in R
+# Use the pivot_longer function to convert the count dataframe to one I am calling
+# dat.long which will end up containing three columns - the Ensembl ID, one called
+# Samples which will contain all of the individual sample values and one called
+# Counts which will contain the gene_expression count values
 
 dat.long <- count.df %>%
   pivot_longer(
-    cols = -X,        # Pivot all columns except the new row_id column
+    cols = -X,        # Pivot all columns except the one containing the Ensemble ID
     names_to = "Samples",    # Column name for your old wide headers
     values_to = "Counts"    # Column name for your data values
   )
@@ -42,7 +53,10 @@ dat.long <- count.df %>%
 
 
 ```{r, message=FALSE}
-
+# This code block is where I join the dat.long dataframe for the counts to the 
+# metadata dataframe for the additional information needed for the assignment
+# The results of the join are stored in a new dataframe.
+# dat.long$Samples is joined on metadata.modified$barcode
 dat.long.enriched <- dat.long %>%
   mutate(X = sub("\\.[^.]*$", "", X)) %>%
   inner_join(., metadata.modified, by = c("Samples" = "barcode"))
@@ -50,74 +64,76 @@ dat.long.enriched <- dat.long %>%
 ```
 
 ```{r, message=FALSE, warning=FALSE}
+
+# This code block is "experimental and will take additional work prior to submitting
+# the final project. I wanted to be able to map the Ensembl IDs to their actual gene symbol
+# I found the example on Google and have it working in my code. There are still some
+# issues I need to resolve but overall, for several of the following plots - this
+# translation makes a big difference.
+
+# Load required libraries
 library(AnnotationDbi)
 library(org.Hs.eg.db)
 
+# The Ensemble ID has a "version" number on it that needs to be stripped off because
+# the gene_symbols generated do not have it.
 count.df.mod <- count.df %>%
   mutate(X = sub("\\.[^.]*$", "", X))
 
-ensemble.ids <- count.df.mod %>% pull(X)
+# Now need to pull the processed Ensemble ID's out into a vector
+ensembl.ids <- count.df.mod %>% pull(X)
 
-
-ensembl_ids <- ensemble.ids
-
-# Map IDs to Gene Symbols
+# This is the heart of the process where the Ensemble ID is mapped to Gene Symbols
 gene_symbols <- mapIds(
   x = org.Hs.eg.db,
-  keys = ensembl_ids,
+  keys = ensembl.ids,
   keytype = "ENSEMBL",
   column = "SYMBOL",
   multiVals = "first" # Keeps the first match if duplicate mappings occur
 )
 
+# Store the results in a dataframe "df" for use in a following join operation
 df <- data.frame(names(gene_symbols),gene_symbols)
-
 
 ```
 ```{r, message=FALSE, warning=FALSE}
 
-
+# This is where I merge the previously created dataframe "df" that contains the
+# actual mapping from Ensembl ID to gene using an inner join
 dat.long.genes <- dat.long.enriched %>%
-#  mutate(X = sub("\\.[^.]*$", "", X)) %>%
   inner_join(., df, by = c("X" = "names.gene_symbols."))
 
 ```
-\newpage
 
-```{r, message=FALSE, warning=FALSE}
-# 1. barplot
-dat.long.genes %>%
-  filter(gene_symbols == 'BRCA1') %>%
-  ggplot(., aes(x=Counts, fill = ajcc_pathologic_stage)) +
-  geom_histogram(alpha = 0.5, binwidth = 1000) +
-  labs(
-    title = "Distribution of BRACA1 Gene Counts",
-    x = "AJCC Pathological Stage",
-    y = "Count (Frequency)"
-  )
-  
-```
-\newpage
+```{r}
 
-```{r, message=FALSE, warning=FALSE}
+#lookup_df <- data.frame(
+#  old_name = dat.long.genes$Samples,
+#  new_name = dat.long.genes$gene_symbols
+#)
 
-dat.long.genes %>%
-  filter(gene_symbols == 'BRCA1') %>%
-  ggplot(., aes(x=ajcc_pathologic_stage,y=Counts)) +
-  geom_violin() +
-  labs(
-    title = "Distribution of BRACA1 Gene Counts",
-    x = "AJCC Pathological Stage",
-    y = "Count (Frequency)"
-  ) + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+# Create a named vector: names are new_names, values are old_names
+#rename_vector <- setNames(dat.long.genes$Samples, dat.long.genes$gene_symbols)
+
+# Use rename with the 'any_of' helper to prevent errors if a column is missing
+#df_renamed <- df %>% 
+#  rename(any_of(rename_vector))
+
+
 
 ```
-\newpage
-```{r, message=FALSE, warning=FALSE}
+All of the data wrangling has been completed up to this point. Additional steps
+will be required when we create the heat map
 
+\newpage
+## 2) Gene selection and Summary Statistics
+
+```{r, Q2}
+
+# I am choosing the gene BRCA1 to study
+# Using dplyr filter out only BRCA1 and do summary statistics
 summary_stats <- dat.long.genes %>%
-  filter(gene_symbols == 'BRCA2') %>%
+  filter(gene_symbols == 'BRCA1') %>%
   summarize(
     min = min(Counts, na.rm = TRUE),
     max = max(Counts, na.rm = TRUE),
@@ -126,25 +142,159 @@ summary_stats <- dat.long.genes %>%
     sd = sd(Counts, na.rm = TRUE)
   )
 summary_stats
+  
 
 ```
 \newpage
+
+## 3) Visualization
+
 ```{r, message=FALSE, warning=FALSE}
+# a) Create a Histogram: Use ggplot2 to generate a histogram of the count data for the selected gene.
+# This visualization should effectively display the distribution of the counts.
+
+dat.long.genes %>%
+  filter(gene_symbols == 'BRCA1') %>%
+  ggplot(., aes(x=Counts, fill = ajcc_pathologic_stage)) +
+    geom_histogram(alpha = 0.5, binwidth = 100) +
+     labs(
+        title = "Distribution of BRCA1 Gene Counts",
+        x = "Sample",
+        y = "Count (Frequency)"
+  ) #+
+    #facet_wrap(~ ajcc_pathologic_stage)
+  
+```
+\newpage
+```{r}
+
+dat.long.genes %>%
+  filter(gene_symbols == 'BRCA1') %>%
+  group_by(ajcc_pathologic_stage) %>%
+  summarise(total_value = sum(Counts, na.rm = TRUE)) %>%
+  ggplot(., aes(x = ajcc_pathologic_stage, y = total_value)) +
+  geom_col(fill = "cornflowerblue", color = "grey30") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "BRCA1 Counts by AJCC Pathologic Stage",
+    x = "AJCC Pathologic Stage",
+    y = "Counts"
+  )
+```
+
+```{r, message=FALSE, warning=FALSE}
+# b) Create a Scatter Plot: Select a second gene from the dataset. Create a scatter plot using 
+# ggplot2 to compare the count data of the two selected genes.
 
 genes.of.interest <- c('BRCA1', 'BRCA2')
 
 #df_test <- dat.long.genes %>%
 dat.long.genes %>%
-#  filter(gene_symbols == 'BRCA1' | gene_symbols == 'MYCBP2') %>%
   filter(gene_symbols %in% genes.of.interest) %>%
   dplyr::select(-1) %>%
   pivot_wider(names_from = gene_symbols, values_from = Counts) %>%
   ggplot(., aes(x=BRCA1,y=BRCA2)) +
-  geom_point()
+  geom_point(aes(color = factor(sample_type)), size = 1)
 
-#df_test <- dat.long.genes %>%
-#   filter(gene_symbols %in% genes.of.interest) %>%
-#   dplyr::select(-1) %>%
-#   pivot_wider(names_from = gene_symbols, values_from = Counts)
+```
+\newpage
+```{r, message=FALSE, warning=FALSE}
+# c) Create a Violin Plot: Select one covariate from your metadata. Using the count data from the first 
+   # gene and the selected covariate, generate a violin plot that illustrates the distribution of count 
+   # data based on the covariate. For example, if you choose “primary_diagnosis”, your plot should display    # a violin plot for each level in “primary_diagnosis”.
+
+dat.long.genes %>%
+  filter(gene_symbols == 'BRCA1') %>%
+  ggplot(., aes(x=ajcc_pathologic_stage,y=Counts)) +
+  geom_violin(fill = "skyblue", color = "darkblue", linewidth = 0.8) +
+  labs(
+    title = "Distribution of BRCA1 Gene Counts by Stage",
+    x = "AJCC Pathological Stage",
+    y = "Count (Frequency)"
+  ) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+\newpage
+
+```{r, message=FALSE, warning=FALSE}
+# d)	Heatmap Analysis: 
+# i)	Select 10 genes: Choose a set of 10 different genes from the count matrix for your heatmap.
+# ii)	Generate a Heatmap: Use the ComplexHeatmap package in R to create a heatmap of the count data 
+   #  for the selected genes. 
+# iii)	Add an Annotation Bar: Include an annotation bar reflecting your chosen covariate for further              context and interpretation of the data.
+
+library(ComplexHeatmap)
+library(circlize)
+
+#count.df <- read.csv(file = "data/counts.csv", header = TRUE)
+#meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
+
+count.df.subset <- count.df[1:10,1:11]
+count.df.subset <- count.df.subset[-1]
+
+meta_data.df.correct <- meta_data.df %>%
+  mutate(barcode = str_replace_all(barcode, "-", "."))
+
+meta_data.df.correct <- meta_data.df.correct[1:10,]
+
+```
+
+```{r}
+
+# Create a named vector: names are new_names, values are old_names
+#rename_vector <- setNames(dat.long.genes$Samples, dat.long.genes$gene_symbols)
+
+# Use rename with the 'any_of' helper to prevent errors if a column is missing
+#count.df.subset_mod <- count.df.subset %>% 
+#  rename(any_of(rename_vector))
+
+
+```
+
+
+```{r}
+
+#dat.long.genes <- dat.long.enriched %>%
+#  mutate(X = sub("\\.[^.]*$", "", X)) %>%
+#  inner_join(., df, by = c("X" = "names.gene_symbols."))
+
+#result <- count.df.subset %>% 
+#  inner_join(df %>% rename(gene_symbols = old_col), by = "id")
+
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+## Heatmap annotations
+column_ha <- HeatmapAnnotation(
+  Disease_Status = meta_data.df.correct$ajcc_pathologic_stage,
+  Laterality = meta_data.df.correct$laterality,
+  col = list(
+    Disease_Status = c("Stage I" = "red", "Stage IA" = "blue", "Stage IIA" = "green",
+                       "Stage IIB" = "yellow", "Stage IIIA" = "brown", "Stage IIIC" = "gray"),
+    Laterality = c(Left = "green", Right = "purple")
+  )
+)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+
+# Create heatmap
+Heatmap(
+  count.df.subset,
+  name = "Counts",
+  top_annotation = column_ha,
+  #show_row_names = TRUE,
+  show_row_names = FALSE,
+  #show_column_names = FALSE,
+  show_column_names = TRUE,
+  cluster_columns = TRUE,
+  cluster_rows = TRUE,
+  column_title = "Samples",
+  row_title = "Genes",
+  heatmap_legend_param = list(title = "Count")
+)
 
 ```

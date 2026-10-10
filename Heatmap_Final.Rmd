@@ -1,0 +1,308 @@
+---
+title: "Heatmap_Final"
+author: "Greg Fisher"
+date: "2026-10-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, LoadLibraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ComplexHeatmap)
+library(circlize)
+```
+
+
+```{r}
+count.df <- read.csv(file = "data/counts.csv", header = TRUE,row.names = 1)
+meta_data.df <- read.csv(file = "data/meta_data.csv", header = TRUE)
+```
+
+```{r, DataWrangling, message=FALSE, warning=FALSE}
+
+# Recommended 10-gene core BRCA/HR variant panel For mutation/variant analysis
+genes.of.interest <- c("ENSG00000012048.23","ENSG00000139618.16",
+                       "ENSG00000083093.10","ENSG00000138376.11",
+                       "ENSG00000108384.15", "ENSG00000185379.20",
+                       "ENSG00000136492.9", "ENSG00000149311.19",
+                       "ENSG00000183765.23", "ENSG00000167258.15")
+
+count.df.subset <- count.df %>%
+  filter(rownames(.) %in% genes.of.interest)
+
+count.df.matrix <- as.matrix(count.df.subset[,])
+
+# Rename from Ensebml ID to Gene
+rownames(count.df.matrix) <- c("BRCA1", "BRCA2", "PALB2", "BARD1", "RAD51C",
+                               "RAD51D", "BRIP1", "ATM", "CHEK2", "CDK12")
+
+```
+
+```{r}
+
+rownames(count.df.subset) <- c("BRCA1", "BRCA2", "PALB2", "BARD1", "RAD51C",
+                               "RAD51D", "BRIP1", "ATM", "CHEK2", "CDK12")
+
+```
+
+```{r}
+
+count.df.subset %>% 
+  mutate(row_mean = rowMeans(select(., where(is.numeric)), na.rm = TRUE)) %>%
+  select(last_col())
+
+```
+
+```{r}
+
+count.df.subset.long <- count.df.subset %>%
+  tibble::rownames_to_column(var = "Gene") %>% 
+  pivot_longer(
+    cols = -Gene, 
+    names_to = "Sample", 
+    values_to = "Counts"
+  )
+
+```
+
+```{r}
+
+meta_data.df.corrected <- meta_data.df %>% mutate(barcode = str_replace_all(barcode, "-", "."))
+
+count.df.subset.enriched <- count.df.subset.long %>%
+  inner_join(., meta_data.df.corrected_2, by = c("Sample" = "barcode"))
+
+```
+
+```{r}
+# Define your target strings
+targets <- c("Adjuvant", "Anastrozole", "First-Line Therapy", "Carboplatin","Paclitaxel")
+pattern <- paste(targets, collapse = "|")
+
+# Extract the matching string into a new column
+meta_data.df.corrected_2 <- meta_data.df.corrected %>% 
+  mutate(treatment_method = str_extract(treatments, pattern))
+```
+
+
+```{r}
+
+count.df.subset.enriched %>%
+  filter(Gene == 'BRCA1') %>%
+  ggplot(., aes(x=Counts, fill = treatment_method)) +
+    geom_histogram(alpha = 0.5, binwidth = 100) +
+     labs(
+        title = "Distribution of BRCA1 Gene Counts",
+        x = "Counts",
+        y = "Count (Frequency)"
+)
+
+```
+
+```{r}
+
+df1 <- count.df.subset.enriched %>%
+  filter(sample_type == "Primary Tumor") %>%
+  #group_by(Gene, treatment_method) %>%
+  #summarise(mean_value = mean(Counts, na.rm = TRUE)) %>%
+  summarise(mean_value = mean(Counts, na.rm = TRUE), .by = c(Gene, treatment_method)) #%>%
+  #ungroup()
+
+```
+
+```{r, message=FALSE}
+
+df2 <- count.df.subset.enriched %>%
+  filter(sample_type == "Primary Tumor") %>%
+  group_by(Gene, treatment_method) %>%
+  summarise(mean_value = mean(Counts, na.rm = TRUE)) #%>%
+  #summarise(mean_value = mean(Counts), .by = c(Gene, treatment_method)) #%>%
+  #ungroup()
+
+```
+
+```{r, message=FALSE}
+
+df3 <- count.df.subset.enriched %>%
+  group_by(sample_type, Gene, treatment_method) %>%
+  summarise(mean_value = mean(Counts, na.rm = TRUE))
+
+
+```
+
+```{r}
+
+ggplot(df3, aes(x = treatment_method, y = mean_value, fill = Gene)) +
+  geom_boxplot(position = "dodge") +
+  scale_y_continuous(limits = c(0, 10000)) #+
+  #facet_wrap(~sample_type)
+
+```
+
+
+```{r}
+
+model <- lm(mean_value ~ treatment_method + Gene, data = df3)
+
+summary(model)
+anova(model)
+
+AIC(model)
+
+```
+
+```{r}
+
+#model <- lm(mean_value ~ treatment_method + Gene, data = df3)
+
+# library(car)
+# library(rstatix)
+
+# Clean the dataframe first
+#clean_data <- na.omit(df3[, c("mean_value", "treatment_method")])
+
+# Run the test on the clean data
+leveneTest(mean_value ~ Gene * treatment_method, data = df3)
+
+# Run the ANOVA model
+anova_model <- aov(mean_value ~ Gene * treatment_method, data = df3)
+
+# View the summary table
+summary(anova_model)
+
+#df3 %>% levene_test(mean_value ~ sample_type)
+
+#print(df3$mean_value)
+
+#df3 %>% leveneTest(mean_value ~ treatment_method)
+
+# Run the ANOVA model
+#anova_model <- aov((mean_value ~ treatment_method * Gene * data = df3))
+
+# View the summary table
+#summary(anova_model)
+
+# Pairwise comparisons across the factors
+TukeyHSD(anova_model)
+
+```
+
+
+```{r}
+
+model <- lm(mean_value ~ treatment_method, data = df1)
+
+summary(model)
+anova(model)
+```
+```{r}
+
+ggplot(df1, aes(x = treatment_method, y = mean_value, fill = Gene)) +
+  #geom_point(alpha = 0.5) +
+  geom_jitter(shape = 21, color = "black", width = 0.2, size = 4) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #+
+  +ylim(0, 10000)
+
+```
+
+## Heatmap
+```{r}
+# Number of samples to choose in column space of count matrix
+n <- 30
+
+count.df.matrix.subset <- count.df.matrix[,1:n]
+
+# Number of rows of the metadata need to match the number of columns of the count matrix
+meta_data.df.subset <- meta_data.df[1:n,c(1,10,23,25,26, 27,29)]
+
+```
+
+```{r}
+
+# Define your target strings
+targets <- c("Adjuvant", "Anastrozole", "First-Line Therapy", "Carboplatin","Paclitaxel")
+pattern <- paste(targets, collapse = "|")
+
+# Extract the matching string into a new column
+meta_data.final.df <- meta_data.df.subset %>% 
+  mutate(treatment_method = str_extract(treatments, pattern))
+
+```
+
+```{r}
+# Define color schemes for all annotations
+colour_list <- list(
+  laterality = colorRamp2(c(18, 45, 90), c("Left" = "blue", "Right" = "orange", "NA" = "yellow")),
+  sample_type = colorRamp2(c(18, 90), c("Primary Tumor" = "red","Solid Tissue Normal" = "green")),
+  #sample_type = colorRamp2(c(20, 100), c("red","green")),
+  treatment_method = c("Adjuvant" = "white", "Anastrozole" = "lightblue",
+                       "Carboplatin" = "lightpink", "First-Line Therapy" = "darkred", 
+                       "NA" = "blue")
+)
+```
+
+```{r}
+
+# Create top annotation for continuous variables
+top_ann <- HeatmapAnnotation(
+  Laterality = meta_data.final.df$laterality,
+  Sample_type = meta_data.final.df$sample_type,
+  
+  col = colour_list,
+     na_col = "blue",
+     gp = gpar(col = "green"),
+  
+  annotation_name_gp = gpar(fontsize = 10),
+  annotation_legend_param = list(
+    Laterality = list(title = "Laterality"),
+    Sample_type = list(title = "Sample Type")
+  )
+)
+
+# Create bottom annotation for treatment variables
+bottom_ann <- HeatmapAnnotation(
+  Treatment_Method = meta_data.final.df$treatment_method,
+  
+  col = colour_list,
+     na_col = "blue",
+     gp = gpar(col = "white"),
+
+  annotation_name_gp = gpar(fontsize = 10)
+ 
+)
+
+```
+
+```{r}
+# Heatmap with annotations
+annotated_heatmap <- Heatmap(
+  count.df.matrix.subset,
+  name = "Expression",
+  
+  # Clustering parameters
+  clustering_distance_rows = "spearman",
+  clustering_method_rows = "ward.D2",
+  clustering_distance_columns = "spearman",
+  clustering_method_columns = "ward.D2",
+  
+  #col = colour_list,
+  
+  top_annotation = top_ann,
+  bottom_annotation = bottom_ann,
+  
+  show_row_names = TRUE,
+  row_names_gp = gpar(fontsize = 8),
+  show_column_names = TRUE,
+  column_names_gp = gpar(fontsize = 8),
+  
+  column_title = "Gene Expression"
+)
+
+draw(annotated_heatmap)
+```
+
+

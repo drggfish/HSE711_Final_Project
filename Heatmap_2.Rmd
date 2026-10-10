@@ -1,0 +1,166 @@
+---
+title: "Heatmap_2"
+author: "Greg Fisher"
+date: "2026-10-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ComplexHeatmap)
+library(circlize)
+
+```
+
+
+```{r, sample_data, message=FALSE, warning=FALSE}
+# Generate sample data for 50 patients and 100 genes
+n_patients <- 50
+n_genes <- 100
+
+# Create meaningful names
+gene_names <- paste0("Gene_", 1:n_genes)
+patient_ids <- paste0("Patient_", sprintf("%02d", 1:n_patients))
+
+# Simulate gene expression data (log2 fold changes)
+expression_data <- matrix(
+  rnorm(n_patients * n_genes, mean = 0, sd = 1.5),
+  nrow = n_genes,
+  ncol = n_patients,
+  dimnames = list(gene_names, patient_ids)
+)
+
+# Add biological structure to make heatmap more interesting
+expression_data[1:20, 1:15] <- expression_data[1:20, 1:15] + 2      # Upregulated cluster
+expression_data[21:40, 16:30] <- expression_data[21:40, 16:30] - 2  # Downregulated cluster
+expression_data[41:60, 31:45] <- expression_data[41:60, 31:45] + 1.5 # Moderate upregulation
+
+```
+
+```{r, create_annotations, message=FALSE, warning=FALSE}
+# Create patient annotation data
+patient_annotations <- data.frame(
+  Patient_ID = patient_ids,
+  
+  # Continuous variables
+  Age = round(rnorm(n_patients, mean = 65, sd = 12)),
+  BMI = round(rnorm(n_patients, mean = 25, sd = 4), 1),
+  Tumor_Size = round(rnorm(n_patients, mean = 3.5, sd = 1.2), 1),
+  
+  # Discrete variables
+  Gender = sample(c("Male", "Female"), n_patients, replace = TRUE, prob = c(0.6, 0.4)),
+  Stage = sample(c("I", "II", "III", "IV"), n_patients, replace = TRUE, prob = c(0.2, 0.3, 0.3, 0.2)),
+  Treatment = sample(c("Surgery", "Chemo", "Radiation", "Combined"), n_patients, replace = TRUE),
+  Response = sample(c("Complete", "Partial", "Stable", "Progressive"), n_patients, replace = TRUE),
+  
+  stringsAsFactors = FALSE
+)
+
+# Ensure realistic bounds for continuous variables
+patient_annotations$Age <- pmax(18, pmin(90, patient_annotations$Age))
+patient_annotations$BMI <- pmax(15, pmin(45, patient_annotations$BMI))
+patient_annotations$Tumor_Size <- pmax(0.5, pmin(10, patient_annotations$Tumor_Size))
+
+head(patient_annotations)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Create basic heatmap
+basic_heatmap <- Heatmap(
+  expression_data,
+  name = "Expression",
+  show_row_names = FALSE,
+  show_column_names = TRUE,
+  column_names_gp = gpar(fontsize = 8),
+  column_title = "Patient Gene Expression Heatmap"
+)
+
+# Draw the heatmap
+draw(basic_heatmap)
+
+```
+
+```{r}
+
+# Define color schemes for all annotations
+colour_list <- list(
+  Age = colorRamp2(c(18, 90), c("white", "magenta4")),
+  BMI = colorRamp2(c(15, 45), c("white", "magenta4")),
+  Tumor_Size = colorRamp2(c(0.5, 10), c("white", "magenta4")),
+  Gender = c("Male" = "aquamarine3", "Female" = "darkgoldenrod2"),
+  Stage = c("I" = "white", "II" = "aquamarine3", "III" = "deepskyblue2", "IV" = "deepskyblue4"),
+  Treatment = c("Surgery" = "white", "Chemo" = "lightblue", "Radiation" = "lightpink", "Combined" = "darkred"),
+  Response = c("Complete" = "white", "Partial" = "lightblue", "Stable" = "lightpink", "Progressive" = "darkred")
+)
+
+```
+
+```{r}
+# Create top annotation for continuous variables
+top_ann <- HeatmapAnnotation(
+  Age = patient_annotations$Age,
+  BMI = patient_annotations$BMI,
+  Tumor_Size = patient_annotations$Tumor_Size,
+  Gender = patient_annotations$Gender,
+  
+  col = colour_list,
+  na_col = "gray",
+  gp = gpar(col = "white"),
+  
+  annotation_name_gp = gpar(fontsize = 10),
+  annotation_legend_param = list(
+    Age = list(title = "Age (years)"),
+    BMI = list(title = "BMI"),
+    Tumor_Size = list(title = "Tumor Size (cm)")
+  )
+)
+
+# Create bottom annotation for treatment variables
+bottom_ann <- HeatmapAnnotation(
+  Stage = patient_annotations$Stage,
+  Treatment = patient_annotations$Treatment,
+  Response = patient_annotations$Response,
+  
+  col = colour_list,
+  gp = gpar(col = "white"),
+  annotation_name_gp = gpar(fontsize = 10)
+)
+```
+
+```{r}
+
+# Define custom color functions
+col_fun1 <- colorRamp2(c(-3, 0, 3), c("darkgreen", "white", "orange3"))
+col_fun2 <- colorRamp2(c(-4, 0, 4), c("navy", "lightgray", "darkred"))
+
+annotated_heatmap <- Heatmap(
+  expression_data,
+  name = "Expression",
+  
+  # Clustering parameters
+  clustering_distance_rows = "spearman",
+  clustering_method_rows = "ward.D2",
+  clustering_distance_columns = "spearman",
+  clustering_method_columns = "ward.D2",
+  
+  col = col_fun2,
+  
+ # top_annotation = top_ann,
+  bottom_annotation = bottom_ann,
+  
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  
+  column_title = "Gene Expression with Patient Annotations"
+)
+
+draw(annotated_heatmap)
+```
+
+
